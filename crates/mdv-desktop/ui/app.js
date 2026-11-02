@@ -23,7 +23,8 @@ document.getElementById("open").addEventListener("click", async () => {
 
 // Links must not navigate the app window away from the reader: in-page anchors
 // scroll as usual, and the backend opens only browser and mail links. Anything
-// else, such as a relative link, is refused and reported in the header.
+// else, such as a relative link, is refused and reported in the header. A link
+// with an empty or missing href is ignored without a message.
 content.addEventListener("click", (event) => {
   const link = event.target.closest("a");
   if (!link) return;
