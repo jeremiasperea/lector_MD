@@ -5,6 +5,7 @@ use std::{fs, path::Path};
 
 use serde::Serialize;
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 #[derive(Serialize)]
 struct Document {
@@ -34,6 +35,25 @@ async fn pick_file(app: tauri::AppHandle) -> Option<String> {
         .map(|path| path.to_string())
 }
 
+/// Documents are untrusted, so a link may only reach the browser or mail client,
+/// never launch local files or other URL handlers.
+fn is_external_url(url: &str) -> bool {
+    let url = url.to_ascii_lowercase();
+    ["http://", "https://", "mailto:"]
+        .iter()
+        .any(|scheme| url.starts_with(scheme))
+}
+
+#[tauri::command]
+fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    if !is_external_url(&url) {
+        return Err(format!("refused to open {url}"));
+    }
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 /// The file passed on the command line, if any: `mdv-desktop notes.md`.
 #[tauri::command]
 fn initial_file() -> Option<String> {
@@ -43,7 +63,34 @@ fn initial_file() -> Option<String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![open_file, pick_file, initial_file])
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![
+            open_file,
+            pick_file,
+            open_external,
+            initial_file
+        ])
         .run(tauri::generate_context!())
         .expect("failed to run the application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_external_url;
+
+    #[test]
+    fn allows_only_browser_and_mail_links() {
+        for url in ["https://a.dev", "HTTP://a.dev", "mailto:a@b.dev"] {
+            assert!(is_external_url(url), "{url}");
+        }
+        for url in [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "notes.md",
+            "smb://x/y",
+            "",
+        ] {
+            assert!(!is_external_url(url), "{url}");
+        }
+    }
 }
