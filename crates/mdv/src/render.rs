@@ -41,6 +41,7 @@ impl Renderer {
 
     /// Renders `markdown` into lines that fit `width` columns (code lines are not wrapped).
     pub fn render(&self, markdown: &str, width: usize) -> Vec<String> {
+        let markdown = &strip_control_chars(markdown);
         let mut lines = Vec::new();
         let mut cursor = 0;
         for block in top_level_code_blocks(markdown) {
@@ -78,6 +79,16 @@ impl Renderer {
         }
         lines.push(String::new());
     }
+}
+
+/// Documents are untrusted: control characters reach the terminal as commands
+/// (clipboard writes, screen clears, fake links), so only newlines and tabs survive.
+/// This runs on the source, before the renderers add their own styling escapes.
+fn strip_control_chars(markdown: &str) -> String {
+    markdown
+        .chars()
+        .filter(|c| !c.is_control() || matches!(c, '\n' | '\t'))
+        .collect()
 }
 
 fn top_level_code_blocks(markdown: &str) -> Vec<CodeBlock> {
@@ -139,6 +150,31 @@ mod tests {
     fn unknown_language_falls_back_to_plain_text() {
         let lines = render("```nope\nhello\n```\n");
         assert!(lines.iter().any(|l| l.contains("hello")));
+    }
+
+    #[test]
+    fn strips_terminal_control_sequences_everywhere() {
+        let lines = render(
+            "Prose \x1b]0;title\x07 \x1b[2J \u{9b}2J\n\n`inline \x1b]52;c;ZXZpbA==\x07`\n\n\
+             ```rust\nlet a = \"\x1b]52;c;ZXZpbA==\x07\";\n```\n\n\
+             ```\n\x1b]8;;http://evil\x07link\n```\n\n[x](http://a \"\x1b]0;T\x07\")\n",
+        )
+        .join("\n");
+        for sequence in ["\x1b]", "\x1b[2J", "\x07", "\u{9b}"] {
+            assert!(!lines.contains(sequence), "{sequence:?} in {lines:?}");
+        }
+        // The payload stays visible as inert text, so tampering can be noticed.
+        assert!(lines.contains("title"));
+        assert!(lines.contains("Prose"));
+    }
+
+    #[test]
+    fn keeps_document_structure_when_stripping() {
+        let lines = render("# Title\r\n\r\nAfter\r\n\r\n```\n\tindented\n```\n");
+        assert!(lines.iter().any(|l| l.contains("Title")));
+        assert!(lines.iter().any(|l| l.contains("After")));
+        assert!(lines.iter().any(|l| l.contains("\tindented")));
+        assert!(lines.iter().all(|l| !l.contains('\r')));
     }
 
     #[test]
