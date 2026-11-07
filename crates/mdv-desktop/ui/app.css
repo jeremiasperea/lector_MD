@@ -2,9 +2,11 @@
 body { margin: 0; background: #0d1117; color: #e6edf3; font: 16px/1.6 system-ui, sans-serif; }
 header { position: sticky; top: 0; display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: #161b22; border-bottom: 1px solid #30363d; }
 button { padding: 4px 12px; color: inherit; background: #21262d; border: 1px solid #30363d; border-radius: 6px; cursor: pointer; }
+button[aria-pressed="true"] { background: #1f6feb; border-color: #1f6feb; }
 #name { color: #8b949e; }
 #status { margin-left: auto; color: #f85149; overflow-wrap: anywhere; }
 main { max-width: 800px; margin: 0 auto; padding: 24px 32px 64px; }
+body.full-width main { max-width: none; }
 .hint { color: #8b949e; }
 h1, h2 { padding-bottom: .3em; border-bottom: 1px solid #30363d; }
 a { color: #4493f8; }
