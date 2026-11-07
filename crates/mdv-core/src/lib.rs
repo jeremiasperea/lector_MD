@@ -78,7 +78,10 @@ fn highlight(source: &str, lang: &str, syntaxes: &SyntaxSet) -> String {
 fn sanitize(html: &str) -> String {
     ammonia::Builder::default()
         .add_tags(["input"])
-        .add_tag_attributes("input", ["type", "checked", "disabled"])
+        .add_tag_attributes("input", ["checked", "disabled"])
+        // Task lists are the only inputs Markdown produces; anything else could
+        // pose as a form field.
+        .set_tag_attribute_value("input", "type", "checkbox")
         .add_tag_attributes("span", ["class"])
         .add_tag_attributes("th", ["style"])
         .add_tag_attributes("td", ["style"])
@@ -116,5 +119,12 @@ mod tests {
         assert!(!html.contains("<script"));
         assert!(!html.contains("onerror"));
         assert!(!html.contains("javascript:"));
+    }
+
+    #[test]
+    fn inputs_can_only_be_checkboxes() {
+        let html = to_html("<input type=text value=x>\n\n<input>\n");
+        assert_eq!(html.matches("type=\"checkbox\"").count(), 2, "{html}");
+        assert!(!html.contains("type=\"text\""), "{html}");
     }
 }
